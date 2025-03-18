@@ -15,6 +15,7 @@ mongoose.connect(process.env.MONGO_URI, {
 .then(() => console.log(" Connected to MongoDB"))
 .catch(err => console.error(" MongoDB connection error:", err));
 
+
 //  Schema Definition
 const todoschema = new mongoose.Schema({
     Name: { type: String, required: true },
@@ -54,6 +55,7 @@ app.get("/", (request, response) => {
 app.get("/secod", async (req, res) => {
     try {
         const todos = await tododata.find();
+        console.log("Todos:", todos); // Debugging: Check if todos exist
         res.render("secod", { todos });
     } catch (error) {
         console.error(error);
@@ -61,9 +63,12 @@ app.get("/secod", async (req, res) => {
     }
 });
 
-// Add a To-Do Item
+
 app.post("/tododata/info", async (req, res) => {
     try {
+        console.log("Received request at /tododata/info"); 
+        console.log("Request Body:", req.body); // Debugging line
+
         const newTodo = await tododata.create(req.body);
         console.log("To-Do Created:", newTodo);
         res.redirect("/secod");
@@ -89,19 +94,55 @@ app.post("/user/delete/:id", async (req, res) => {
     }
 });
 
+        
+
 //  Edit Page
+// app.get("/user/edit/:id", async (req, res) => {
+//     try {
+//         let { id } = req.params;
+//         console.log("Raw ID:", id); // Debugging
+//         if (!mongoose.Types.ObjectId.isValid(id)) {
+//             console.error("Invalid ObjectId:", id);
+//             return res.status(400).send("Invalid To-Do ID");
+//         }
+
+//         console.log("Received ID:", req.params.id);
+        
+//         await tododata.findByIdAndDelete(id);
+//         console.log(`Deleted To-Do with ID: ${id}`);
+//         res.redirect("/secod");
+//         console.log("Received ID:", id);
+        
+//         const datq = await tododata.findById(id);
+
+//         if (!datq) {
+//             return res.status(404).send("To-Do not found");
+//         }
+
+//         console.log(datq);
+//         res.render("edit", { datq, id });
+
+//     } catch (error) {
+//         console.error(error);
+//         res.status(500).send("Error fetching To-Do for editing");
+//     }
+// });
+
+
+// Update a To-Do Item
 app.get("/user/edit/:id", async (req, res) => {
     try {
         let { id } = req.params;
         console.log("Raw ID:", id); // Debugging
+
         if (!mongoose.Types.ObjectId.isValid(id)) {
             console.error("Invalid ObjectId:", id);
             return res.status(400).send("Invalid To-Do ID");
         }
 
-        console.log("Received ID:", id);
-        
-        const datq = await tododata.findById(id);
+        console.log("Received ID:", req.params.id);
+
+        const datq = await tododata.findById(id); // ✅ Fetching data without deleting
 
         if (!datq) {
             return res.status(404).send("To-Do not found");
@@ -116,11 +157,24 @@ app.get("/user/edit/:id", async (req, res) => {
     }
 });
 
-
-// Update a To-Do Item
-app.post("/user/update/:id", async (req, res) => {
+app.post('/user/update/:id', async (req, res) => {
     try {
-        const updatedTodo = await tododata.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+        const { Name, Activity, Status, Date, Time, Priority, TaskType } = req.body;
+
+       
+        if (!Name || !Activity || !Status || !Date || !Time || !Priority || !TaskType) {
+            return res.status(400).json({ message: 'All fields are required' });
+        }
+
+        
+        const updatedTodo = await tododata.findByIdAndUpdate(
+            req.params.id,
+            { $set: { Name, Activity, Status, Date, Time, Priority, TaskType } }, // Updating fields
+            { new: true, runValidators: true } // Return the updated document and validate fields
+        );
+
+        // const updatedTodo = await tododata.findByIdAndUpdate(rez11q.params.id, req.body, { new: true, runValidators: true });
+
 
         if (!updatedTodo) {
             return res.status(404).json({ message: "To-Do not found" });
@@ -131,10 +185,15 @@ app.post("/user/update/:id", async (req, res) => {
         res.status(500).json({ message: "Error updating To-Do" });
     }
 });
+//Redirect to idex
+
+app.get("/todo/wew", (req, res) => {
+    res.redirect("/");
+});
 
 // ✅ Server Listening
 const port = process.env.PORT;
 app.listen(port, () => {
-    console.log(`🚀 Server started on port ${port}`);
-});
+    console.log(`app started at port ${port}`)
+})
 
