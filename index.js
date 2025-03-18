@@ -1,28 +1,39 @@
-const express = require("express")
-const app = express()
-const ejs = require("ejs")
-const mongoose = require("mongoose")
+require('dotenv').config(); // Load environment variables at the TOP
+console.log("MONGO_URI:", process.env.MONGO_URI); // Debugging line
 
-let maimarray = []
+const express = require("express");
+const mongoose = require("mongoose");
+const ejs = require("ejs");
 
+const app = express();
+
+//  MongoDB Connection
+mongoose.connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+})
+.then(() => console.log(" Connected to MongoDB"))
+.catch(err => console.error(" MongoDB connection error:", err));
+
+//  Schema Definition
 const todoschema = new mongoose.Schema({
-    Name: { type: String, required: true }, 
+    Name: { type: String, required: true },
     Activity: { type: String, required: true },
     Status: { type: String, required: true },
     Date: { type: String, required: true },
     Time: { type: String, required: true },
     Priority: { type: String, required: true },
     TaskType: { type: String, required: true },
-})
+});
 
-  const tododata = mongoose.model("todolist_data", todoschema)
+const tododata = mongoose.model("todolist_data", todoschema);
 
+app.set("view engine", "ejs");
+app.use(express.urlencoded({ extended: true }));
 
-app.set("view engine", "ejs")
-app.use(express.urlencoded({ extended: true }))
-
+// Home Page
 app.get("/", (request, response) => {
-    // response.json(
+      // response.json(
     //     [
     //        {"name":"Anjola", "Activity" : "Research market trends", "Status": "To Do","date":"16/02/2025","Time" :"1:30pm", "Priority":"High", "Task Type" : "Marketing"},
     //        {"name":"Vanessa", "Activity" : "Schedule doctor's appointment", "Status": "Cancelled","date":"14/03/2025","Time" :"7:50apm", "Priority":"High", "Task Type" : "Pet Chore"},
@@ -36,147 +47,94 @@ app.get("/", (request, response) => {
     //        {"name":"Camilla", "Activity" : "Grocery shopping", "Status": "ToDo","date":"6/05/2025","Time" :"2:41pm", "Priority":"High", "Task Type" : "Groceries"},
     //     ]
     // )
+    response.render("index");
+});
 
-    response.render("index", {})
-})
-
-
+// Get All Todos
 app.get("/secod", async (req, res) => {
     try {
-        const todos = await tododata.find(); // Fetch all To-Do entries
-        res.render("secod", { todos }); // Pass the data to the second page
+        const todos = await tododata.find();
+        res.render("secod", { todos });
     } catch (error) {
         console.error(error);
-        res.send("Error retrieving To-Do data.");
+        res.status(500).send("Error retrieving To-Do data.");
     }
 });
 
-app.get("/todo/wew", (req, res) => {
-    // res.redirect("/index");
-    res.render("index")
-})
-
-app.post("/tododata/info",async (req, res) => {
-    console.log(req.body);
-    const { Name, Activity, Status, Date, Time, Priority, TaskType } = req.body
-
-    // if (!Name || !Activity || !Status || !Date || !Time || !Priority || !TaskType) {
-    //     console.log("Please fill your information in")
-
-    //     res.redirect("/")
-    // } else {
-        // maimarray.push(req.body);
-        // console.log(maimarray)
-       try {
-        const createToDo = await tododata.create(req.body)
-        console.log(createToDo);
-        
-        res.redirect("/secod")
-       } catch (error) {
-         console.log(error);
-         
-       }
+// Add a To-Do Item
+app.post("/tododata/info", async (req, res) => {
+    try {
+        const newTodo = await tododata.create(req.body);
+        console.log("To-Do Created:", newTodo);
+        res.redirect("/secod");
+    } catch (error) {
+        console.error(" Error creating To-Do:", error);
+        res.status(500).send("Error creating To-Do.");
     }
-// }
-)
+});
 
+// Delete a To-Do Item
 app.post("/user/delete/:id", async (req, res) => {
     try {
-        let { id } = req.params; // Extract ID
-        console.log("Raw ID:", id); // Debugging
+        let { id } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).send("Invalid To-Do ID");
+        }
+        await tododata.findByIdAndDelete(id);
+        console.log(` Deleted To-Do with ID: ${id}`);
+        res.redirect("/secod");
+    } catch (error) {
+        console.error(" Error deleting To-Do:", error);
+        res.status(500).send("Error deleting task.");
+    }
+});
 
-        // 🔹 Ensure `id` is a valid MongoDB ObjectId
+//  Edit Page
+app.get("/user/edit/:id", async (req, res) => {
+    try {
+        let { id } = req.params;
+        console.log("Raw ID:", id); // Debugging
         if (!mongoose.Types.ObjectId.isValid(id)) {
             console.error("Invalid ObjectId:", id);
             return res.status(400).send("Invalid To-Do ID");
         }
 
-        console.log("Received ID:", req.params.id);
-        // 🔹 Delete from MongoDB
-        await tododata.findByIdAndDelete(id);
-        console.log(`Deleted To-Do with ID: ${id}`);
-        res.redirect("/secod");
+        console.log("Received ID:", id);
+        
+        const datq = await tododata.findById(id);
+
+        if (!datq) {
+            return res.status(404).send("To-Do not found");
+        }
+
+        console.log(datq);
+        res.render("edit", { datq, id });
+
     } catch (error) {
-        console.error("Error deleting todo:", error);
-        res.status(500).send("Error deleting task");
+        console.error(error);
+        res.status(500).send("Error fetching To-Do for editing");
     }
 });
 
-app.get("/user/edit/:id",async (req, res) => {
+
+// Update a To-Do Item
+app.post("/user/update/:id", async (req, res) => {
     try {
-        let {id} = req.params;
-    console.log("Raw ID:", id); // Debugging
-
-    // 🔹 Ensure `id` is a valid MongoDB ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-            console.error("Invalid ObjectId:", id);
-            return res.status(400).send("Invalid To-Do ID");
-    }
-    console.log("Received ID:", req.params.id);
-    const datq = await tododata.findById(req.params.id);
-    console.log(datq);
-    res.render("edit", {datq, id})
-
-    } catch (error) {
-        console.log(error);
-        
-    }
-})
-
-
-// 🛠 **POST route to update a to-do item by ID*
-  app.post('/user/update/:id', async (req, res) => {
-    try {
-        const { Name, Activity, Status, Date, Time, Priority, TaskType } = req.body;
-
-        // Check if all required fields are provided (optional)
-        if (!Name || !Activity || !Status || !Date || !Time || !Priority || !TaskType) {
-            return res.status(400).json({ message: 'All fields are required' });
-        }
-
-        // Update the to-do item in the database
-        const updatedTodo = await tododata.findByIdAndUpdate(
-            req.params.id,
-            { $set: { Name, Activity, Status, Date, Time, Priority, TaskType } }, // Updating fields
-            { new: true, runValidators: true } // Return the updated document and validate fields
-        );
+        const updatedTodo = await tododata.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
 
         if (!updatedTodo) {
-            return res.status(404).json({ message: 'To-Do not found' });
+            return res.status(404).json({ message: "To-Do not found" });
         }
-
-         // Fetch all todos after update
-         const todos = await tododata.find();
-
-         // Render the EJS file with all todos
-        //  res.render("secod", { todos });
-        res.redirect("/secod")
-
+        res.redirect("/secod");
     } catch (error) {
-        console.error('Error updating To-Do:', error);
-        res.status(500).json({ message: 'Error updating To-Do', error: error.message });
+        console.error(" Error updating To-Do:", error);
+        res.status(500).json({ message: "Error updating To-Do" });
     }
 });
 
-
-
-const uri = "mongodb+srv://Diekodavid:Rejoice39@cluster0.ugfny.mongodb.net/Todolistbase?retryWrites=true&w=majority&appName=Cluster0"
- const codar = async() =>{
-   try {
-    const codared = await mongoose.connect(uri)
-    if (codared) {
-        console.log("connection to dataase is successful");
-    }
-   } catch (error) {
-    console.log(error);
-    
-   }
-
- }
- codar()
-
-const port = 9000
-
+// ✅ Server Listening
+const port = process.env.PORT;
 app.listen(port, () => {
-    console.log(`app started at port ${port}`)
-})
+    console.log(`🚀 Server started on port ${port}`);
+});
+
